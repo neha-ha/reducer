@@ -1,0 +1,12 @@
+# ignore node_modules folder in all subdirectories
+**/node_modules/
+
+# ignore venvs
+venv310/
+venvlinux/
+
+# ignore shaders
+shaders/
+
+# ignore gpuweb cloned
+gpuweb_cloned
