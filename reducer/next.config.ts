@@ -9,7 +9,7 @@
 import { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  webpack(config, options) {
+  webpack(config, {isServer}) {
     // Enable WebAssembly and Layers experiment
     config.experiments = {
       ...config.experiments,
@@ -17,10 +17,17 @@ const nextConfig: NextConfig = {
       layers: true, // Add this line to fix the "entryOptions.layer" issue
     };
 
+    if (!isServer) {
+      // Prevents Webpack from trying to bundle "fs" module in the browser
+      config.resolve.fallback = {
+        ...config.resolve.fallback,
+        fs: false,
+      };
+    }
+
     return config;
   },
 };
 
 export default nextConfig;
-
 

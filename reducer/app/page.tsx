@@ -95,11 +95,11 @@
 import React, { useState } from "react";
 import { run_shader } from "../components/run_shader";
 import { analyze } from "../components/analyze_results";
+import { reduce } from "../components/reducer.js";
 import axios from "axios";
-//wasm attempt
-// try parsing js instead of wgsl
 
-
+// using wasm 
+const Parser = require('web-tree-sitter');
 
 
 const ShaderRunner = () => {
@@ -125,8 +125,11 @@ const ShaderRunner = () => {
   });
   const [mismatches, setMismatches] = useState<string | null>(null);
   const [ast, setAst] = useState('');
+  const [reducedSafeShader, setReducedSafeShader] = useState<string | null>(null);
+  const [reducedRacyShader, setReducedRacyShader] = useState<string | null>(null);
+  const [reducedMismatches, setReducedMismatches] = useState<string | null>(null);
 
-  const handleRunShader = async (shader: string, setOutput: React.Dispatch<React.SetStateAction<string | null>>) => {
+  const runShader = async (shader: string, setOutput: React.Dispatch<React.SetStateAction<string | null>>) => {
     try {
       const outputs = await run_shader(shader, shaderInfo);
       if (!outputs || outputs.length === 0) {
@@ -184,45 +187,36 @@ const ShaderRunner = () => {
     }
   };
 
+  // const reduceWGSL = async () => {
+  //   let [safeShader, racyShader, safeAST, racyAST, new_mismatches] = await reduce(shader1, shader2, shaderInfo);
+    
+  //   console.log("new safe shader "+ safeShader);
+  //   console.log("new racy shader "+ racyShader);
+
+  //   // set reduced outputs
+  //   setReducedSafeShader(safeShader);
+  //   setReducedRacyShader(racyShader);
+  //   setReducedMismatches(JSON.stringify(new_mismatches, null, 2));
+  // };
+
   const reduceWGSL = async () => {
-    try {
+    let [safeShader, racyShader, safeAST, racyAST, new_mismatches] = await reduce(shader1, shader2, shaderInfo);
 
-      let reducetest = await axios.post("http://localhost:5000/reduce", {
-        safeShader: shader1,
-        racyShader: shader2,
-        
-      });
+    // console.log("new safe shader:", safeShader);
+    // console.log("new racy shader:", racyShader);
+    // console.log("new mismatches: ", new_mismatches);
 
-      console.log(reducetest);
-
-      // // send wgsl code and wait for a response from the backend
-      // let safeAST = await axios.post("http://localhost:5000/wgsl-to-ast", {
-      //   code: shader1,
-      // });
-
-      // let racyAST = await axios.post("http://localhost:5000/wgsl-to-ast", {
-      //   code: shader2,
-      // });
-
-      // safeAST = safeAST.data.ast;
-      // racyAST = racyAST.data.ast;
-
-      // console.log(safeAST);
-      // console.log(racyAST);
-      
-      //const root = data.rootNode;
-      // setAst(JSON.stringify(safeAST));
-
-      // now that we have both trees- let's see if we can step through
-      // because we get from the backend, the trees are JSON objects instead of actual trees
-
-      
-      
-
-    } catch (error) {
-      console.error("Error parsing WGSL code:", error);
+    if (!safeShader || !racyShader) {
+      console.log("safeShader or racyShader is null!");
     }
+
+    // set reduced outputs
+    setReducedSafeShader(safeShader);
+    setReducedRacyShader(racyShader);
+    // setReducedMismatches(JSON.stringify(new_mismatches, null, 2));
+    setReducedMismatches(new_mismatches);
   };
+  
 
   return (
     <div style={styles.container}>
@@ -254,7 +248,7 @@ const ShaderRunner = () => {
             <label style={styles.label} htmlFor="jsonObject">JSON Object:</label>
             <textarea
               id="jsonObject"
-              style={styles.largeTextArea}
+              style={styles.largeTextAreaWrapText}
               value={jsonInput}
               onChange={handleJsonInputChange}
               placeholder="Paste JSON here"
@@ -273,7 +267,7 @@ const ShaderRunner = () => {
                 onChange={(e) => setShader1(e.target.value)}
                 placeholder="Paste WGSL shader code here"
               />
-              <button style={styles.greenButton} onClick={() => handleRunShader(shader1, setShader1Output)}>
+              <button style={styles.greenButton} onClick={() => runShader(shader1, setShader1Output)}>
                 Run Safe Shader
               </button>
               <div style={styles.output}>
@@ -289,7 +283,7 @@ const ShaderRunner = () => {
                 onChange={(e) => setShader2(e.target.value)}
                 placeholder="Paste WGSL shader code here"
               />
-              <button style={styles.greenButton} onClick={() => handleRunShader(shader2, setShader2Output)}>
+              <button style={styles.greenButton} onClick={() => runShader(shader2, setShader2Output)}>
                 Run Racy Shader
               </button>
               <div style={styles.output}>
@@ -298,6 +292,7 @@ const ShaderRunner = () => {
             </div>
           </div>
 
+          <br />
           <div style={{ ...styles.analyzeSection, ...styles.column }}>
             <button style={{ ...styles.greenButton, ...styles.wideButton }} onClick={handleRunBothAndAnalyze}>
               Run Both and Analyze Mismatches
@@ -306,18 +301,57 @@ const ShaderRunner = () => {
             <div style={styles.output}>
               <pre style={styles.code}>{mismatches || 'Run Analyze to see mismatches...'}</pre>
             </div>
-          </div>    
-
+          </div>   
+           
+          <br />
           <div style={{ ...styles.analyzeSection, ...styles.column }}>
             <button style={{ ...styles.greenButton, ...styles.wideButton }} onClick={reduceWGSL}>
               Generate AST and Reduce
             </button>
 
-            <div style={styles.output}>
+            {/* <div style={styles.output}>
               <pre style={styles.code}>{ast || 'Generate AST...'}</pre>
-            </div>
+            </div> */}
 
           </div>   
+
+          <br />
+
+          
+          <div style={styles.row}>
+            <div style={styles.column}>
+              <h2 style={styles.subTitle}>Reduced Safe Shader</h2>
+              <textarea
+                style={styles.largeTextAreaWrapText}
+                value={reducedSafeShader || ""}
+                readOnly
+                placeholder="Reduced Safe Shader Output..."
+              />
+            </div>
+
+            <div style={styles.column}>
+              <h2 style={styles.subTitle}>Reduced Racy Shader</h2>
+              <textarea
+                style={styles.largeTextAreaWrapText}
+                value={reducedRacyShader || ""}
+                readOnly
+                placeholder="Reduced Racy Shader Output..."
+              />
+            </div>
+
+          </div>
+          
+
+          {/* Mismatches Output */}
+          <div style={{ ...styles.analyzeSection, ...styles.column }}>
+            <div style={styles.output}>
+              <pre style={styles.code}>{reducedMismatches || 'Mismatches after reduction...'}</pre>
+            </div>
+          </div>
+          <br />
+          <br />
+          <br />
+          
         </div>
       </div>
     </div>
@@ -333,6 +367,8 @@ const ShaderRunner = () => {
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',
+    overflowX: 'auto',
+    overflowY: 'auto',
   },
   title: {
     fontSize: '36px',
@@ -390,6 +426,25 @@ const ShaderRunner = () => {
     backgroundColor: '#f0f0f0',
     color: '#333',
     resize: 'vertical',
+    overflowY: 'auto',
+    overflowX: 'auto',
+    maxWidth: '600px',
+    whiteSpace: 'pre', // prevents long lines from wrapping
+  },
+  largeTextAreaWrapText: {
+    width: '100%',
+    height: '300px',
+    borderRadius: '8px',
+    border: 'none',
+    padding: '10px',
+    fontFamily: 'monospace',
+    fontSize: '14px',
+    backgroundColor: '#f0f0f0',
+    color: '#333',
+    resize: 'vertical',
+    overflowY: 'auto',
+    overflowX: 'auto',
+    maxWidth: '600px',
   },
   thinTextArea: {
     width: '100%',
@@ -437,11 +492,11 @@ const ShaderRunner = () => {
     color: '#333',
   },
   analyzeSection: {
-    marginTop: '30px',
+    flex: '2',
     display: 'flex',
     flexDirection: 'column',
-    alignItems: 'flex-start',
-    gap: '20px',
+    padding: '10px 20px',
+    boxSizing: 'border-box',
   },
   label: {
     fontSize: '14px',
