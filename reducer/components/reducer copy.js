@@ -78,8 +78,8 @@ export const reduce = async (safeShader, racyShader, shaderInfo) => {
       // node: compound_statement.child(i)-- the actual node
     // do this for both the safe and racy trees
 
-    let safe_removables = removable_statements(safe_compound_statement, safe_start_index + 1, safe_end_index);
-    let racy_removables = removable_statements(racy_compound_statement, racy_start_index + 1, racy_end_index);
+    let safe_removables = removable_statements(safe_compound_statement, safe_start_index, safe_end_index);
+    let racy_removables = removable_statements(racy_compound_statement, racy_start_index, racy_end_index);
 
     const multiline_types = ["for_statement", "if_statement", "while_statement"];
 
@@ -89,7 +89,7 @@ export const reduce = async (safeShader, racyShader, shaderInfo) => {
 
     // get starting number of mismatches
     let mismatches = await getMismatches(safeShader, racyShader, shaderInfo);
-
+    mismatches = JSON.stringify(mismatches, null, 2);
     // iterate through racy_removables
     for (let racy_item of racy_removables) {
 
@@ -97,7 +97,7 @@ export const reduce = async (safeShader, racyShader, shaderInfo) => {
         let safe_item = safe_removables.find(safeItem => safeItem.text === racy_item.text) || null;
         
         // try removing the line & see if it affects mismatches, etc.
-        let result = await try_remove(racy_item, safe_item, ["for_statement", "if_statement", "while_statement", "if", "else"].includes(racy_item.node.child(0).type), safeShader, racyShader, safeAST, racyAST, mismatches, shaderInfo, parser);
+        let result = await try_remove(racy_item, safe_item, ["for_statement", "if_statement", "while_statement"].includes(racy_item.node.child(0).type), safeShader, racyShader, safeAST, racyAST, mismatches, shaderInfo, parser);
         safeShader = result.safeShader;
         racyShader = result.racyShader;
         safeAST = result.safeAST;
@@ -114,7 +114,7 @@ const try_remove = async (racy_item, safe_item, is_multiline, safeShader, racySh
     console.log('removing\n', racy_item.text)
 
     // if the line exists in safe too
-    if (safe_item) {
+    if (true) {
         // remove from both shaders
         console.log("attempting to remove from both")
         let [new_safeAST, new_safeShader] = remove(safe_item.node, safeShader, parser);
@@ -122,15 +122,15 @@ const try_remove = async (racy_item, safe_item, is_multiline, safeShader, racySh
 
         // check mismatches
         let new_mismatches = await getMismatches(new_safeShader, new_racyShader, shaderInfo);
-        if (JSON.stringify(mismatches, null, 2) === JSON.stringify(new_mismatches, null, 2))  {
-        // if (false) {
+        // if (mismatches === JSON.stringify(new_mismatches, null, 2))  {
+        if (false) {
             console.log("mismatches did not change, permanently removed statement");
             // if mismatches do not change, permanently remove statement
-            return { safeShader: new_safeShader, racyShader: new_racyShader, safeAST: new_safeAST, racyAST: new_racyAST, mismatches: mismatches };
+            return { safeShader: new_safeShader, racyShader: new_racyShader, safeAST: new_safeAST, racyAST: new_racyAST, mismatches };
         }
         // if mismatchs do change, check for multiline
         else {
-            console.log("number of mismatches changed: " + mismatches + " to " + JSON.stringify(new_mismatches, null, 2));
+            console.log("number of mismatches changed: " + JSON.stringify(mismatches, null, 2) + " to " + JSON.stringify(new_mismatches, null, 2));
 
             if (is_multiline) {
                 console.log("statement is multiline, attempting to remove children");
@@ -158,34 +158,66 @@ const try_remove = async (racy_item, safe_item, is_multiline, safeShader, racySh
                 let multiline_statement_index = 0;
                 for (let i = 0; i < racy_item.node.childCount; i++) {
                     //console.log(racy_item.node.child(i).type);
-                    if (["for_statement", "if_statement", "while_statement", "if_clause", "else_clause"].includes(racy_item.node.child(i).type)) {
+                    if (["for_statement", "if_statement", "while_statement"].includes(racy_item.node.child(i).type)) {
                         multiline_statement_node = racy_item.node.child(i);
                         multiline_statement_index = i;
                         break;
                     }
                 }
-                console.log("found " + multiline_statement_node.type);
+                console.log("found if/while/for_statement");
+                console.log(multiline_statement_node.type);
 
 
-                
+                console.log("finding compound_statement inside if/while/for_statement")
                 let node = multiline_statement_node;
-                let is_if = multiline_statement_node.type === "if_statement";
-                let is_if_clause = multiline_statement_node.type === "if_clause";
-                let is_else_clause = multiline_statement_node.type === "else_clause";
-                console.log("is if clause " + is_if_clause);
-                console.log("is else clause " + is_else_clause);
-
-                let racy_node = node;
-                let safe_node = safe_item.node.child(multiline_statement_index);
-
-                console.log('initial racy and safe node types: ')
-                console.log(racy_node.type)
-                console.log(safe_node.type);
-
-                if (! is_if) {
-                    
-                    console.log("finding compound_statement inside while/for_statement or if/else_clause");
+                let is_if = multiline_statement_node.child(0)?.type === "if_clause";
+                let is_else = multiline_statement_node.child(1)?.type === "else_clause";
                 
+                // if statements seem to have one extra layer of depth for some reason
+                if (is_if) {
+                    node = multiline_statement_node.child(0);
+                }
+
+                let index = 0;
+                console.log("node type " + node.type);
+                for (let i = 0; i < node.childCount; i++) {
+                    // console.log(node.child(i).type);
+                    if (node.child(i).type === "compound_statement") {
+                        index = i;
+                        break;
+                    }
+                }
+                console.log("found compound_statement inside multiline");
+                console.log(node.child(index).type);
+
+
+                // if the multiline block is shared between safe and racy the compound statement should be at the same index relatively
+                let racy_node = node.child(index);
+                let safe_node = safe_item.node.child(multiline_statement_index);
+                if (is_if) {
+                    safe_node = safe_node.child(0);
+                }
+                safe_node = safe_node.child(index);
+
+                // try removing child statements, same logic as outer loop where you find statements that you can remove
+                let racy_removables = removable_statements(racy_node, 0, racy_node.childCount)
+                let safe_removables = removable_statements(safe_node, 0, safe_node.childCount)
+                
+                for (let racy_item2 of racy_removables) {
+
+                    let safe_child = safe_removables.find(c => c.text === racy_item2.text);
+                    
+                    let result = await try_remove(racy_item2, safe_child, ["for_statement", "if_statement", "while_statement"].includes(racy_item2.node.child(0).type), safeShader, racyShader, safeAST, racyAST, new_mismatches, shaderInfo, parser);
+                    safeShader = result.safeShader;
+                    racyShader = result.racyShader;
+                    safeAST = result.safeAST;
+                    racyAST = result.racyAST;
+                    mismatches = result.mismatches;
+                }
+
+                if (is_else) {
+                    node = multiline_statement_node.child(1);
+
                     let index = 0;
                     console.log("node type " + node.type);
                     for (let i = 0; i < node.childCount; i++) {
@@ -195,57 +227,42 @@ const try_remove = async (racy_item, safe_item, is_multiline, safeShader, racySh
                             break;
                         }
                     }
-                    console.log("found compound_statement inside multiline");
+                    console.log("found compound_statement inside multiline else");
                     console.log(node.child(index).type);
 
+
                     // if the multiline block is shared between safe and racy the compound statement should be at the same index relatively
-
-                    if (is_else_clause || is_if_clause) {
-                        console.log("here");
-                        racy_node = node.child(index);
-                        safe_node = safe_item.node.child(index);
-                        //safe_node = safe_node.child(index);
-                        console.log("racy node " + racy_node.type)
-                        console.log("safe node " + safe_node.type)
+                    racy_node = node.child(index);
+                    safe_node = safe_item.node.child(multiline_statement_index);
+                    if (is_else) {
+                        safe_node = safe_node.child(1);
                     }
-                    else {
-                        racy_node = node.child(index);
-                        safe_node = safe_item.node.child(multiline_statement_index);
-                        safe_node = safe_node.child(index);
-                        console.log("racy node " + racy_node.type)
-                        console.log("safe node " + safe_node.type)
+                    safe_node = safe_node.child(index);
+
+                    // try removing child statements, same logic as outer loop where you find statements that you can remove
+                    let racy_removables = removable_statements(racy_node, 0, racy_node.childCount)
+                    let safe_removables = removable_statements(safe_node, 0, safe_node.childCount)
+                    
+                    for (let racy_item3 of racy_removables) {
+
+                        let safe_child = safe_removables.find(c => c.text === racy_item3.text);
+                        
+                        let result = await try_remove(racy_item3, safe_child, ["for_statement", "if_statement", "while_statement"].includes(racy_item3.node.child(0).type), safeShader, racyShader, safeAST, racyAST, new_mismatches, shaderInfo, parser);
+                        safeShader = result.safeShader;
+                        racyShader = result.racyShader;
+                        safeAST = result.safeAST;
+                        racyAST = result.racyAST;
+                        mismatches = result.mismatches;
                     }
-                    
-                    
-
                 }
-                
-
-                // try removing child statements, same logic as outer loop where you find statements that you can remove
-                let racy_removables = removable_statements(racy_node, 0, racy_node.childCount)
-                let safe_removables = removable_statements(safe_node, 0, safe_node.childCount)
-
-                console.log(racy_removables);
-                console.log(safe_removables);
-                
-                for (let racy_item2 of racy_removables) {
-
-                    let safe_child = safe_removables.find(c => c.text === racy_item2.text);
-                    
-                    console.log("racy item 2 " + racy_item2.node.child(0).type);
-                    let result = await try_remove(racy_item2, safe_child, ["for_statement", "if_statement", "while_statement", "if", "else"].includes(racy_item2.node.child(0).type), safeShader, racyShader, safeAST, racyAST, new_mismatches, shaderInfo, parser);
-                    safeShader = result.safeShader;
-                    racyShader = result.racyShader;
-                    safeAST = result.safeAST;
-                    racyAST = result.racyAST;
-                    mismatches = result.mismatches;
-                }
+            
 
             }
 
              console.log("done trying to remove kids");
         }
         
+    
 
         return {safeShader, racyShader, safeAST, racyAST, mismatches};
     }
@@ -258,15 +275,15 @@ const try_remove = async (racy_item, safe_item, is_multiline, safeShader, racySh
 
         // check mismatches
         let new_mismatches = await getMismatches(safeShader, new_racyShader, shaderInfo);
-        if (JSON.stringify(mismatches, null, 2) === JSON.stringify(new_mismatches, null, 2)) {
-        // if (false) {
+        // if (mismatches === JSON.stringify(new_mismatches, null, 2)) {
+        if (false) {
             // if mismatches do not change, permanently remove statement
             console.log("mismatches did not change, permanently removed statement");
             return { safeShader, racyShader: new_racyShader, safeAST, racyAST: new_racyAST, mismatches: mismatches };
         }
         // if mismatchs do change, revert- pretend you never did anything 
         else {
-            console.log("number of mismatches changed: " + mismatches + " to " + JSON.stringify(new_mismatches, null, 2));
+            console.log("number of mismatches changed: " + JSON.stringify(mismatches, null, 2) + " to " + JSON.stringify(new_mismatches, null, 2));
             // unless multiline
             if (is_multiline) {
                 console.log("statement is multiline, attempting to remove children");
@@ -277,44 +294,39 @@ const try_remove = async (racy_item, safe_item, is_multiline, safeShader, racySh
                 let multiline_statement_index = 0;
                 for (let i = 0; i < racy_item.node.childCount; i++) {
                     //console.log(racy_item.node.child(i).type);
-                    if (["for_statement", "if_statement", "while_statement", "if_clause", "else_clause"].includes(racy_item.node.child(i).type)) {
+                    if (["for_statement", "if_statement", "while_statement"].includes(racy_item.node.child(i).type)) {
                         multiline_statement_node = racy_item.node.child(i);
                         multiline_statement_index = i;
                         break;
                     }
                 }
-                console.log("found " + multiline_statement_node.type);
+                console.log("found if/while/for_statement");
+                console.log(multiline_statement_node.type);
                 
 
                 console.log("finding compound_statement inside if/while/for_statement")
                 let node = multiline_statement_node;
                 // if statements seem to have one extra layer of depth for some reason
                 // we also need to do two recursive paths if there is an else
-                let is_if = multiline_statement_node.type === "if_statement";
-                let is_if_clause = multiline_statement_node.type === "if_clause";
-                let is_else_clause = multiline_statement_node.type === "else_clause";
+                let is_if = multiline_statement_node.child(0)?.type === "if_clause";
+                let is_else = multiline_statement_node.child(1)?.type === "else_clause"
                 
-                
-                if (! is_if) {
-                    console.log("finding compound_statement inside while/for_statement or if/else_clause");
-                
-                    console.log("node type " + node.type);
-                    let index = 0;
-                    for (let i = 0; i < node.childCount; i++) {
-                        // console.log(node.child(i).type);
-                        if (node.child(i).type === "compound_statement") {
-                            index = i;
-                            break;
-                        }
-                    }
-                    console.log("found compound_statement inside multiline");
-                    console.log(node.child(index).type);
-
-                    node = node.child(index);
-
+                if (is_if) {
+                    node = multiline_statement_node.child(0);
                 }
+                let index = 0;
+                // console.log("node type " + node.type);
+                for (let i = 0; i < node.childCount; i++) {
+                    // console.log(node.child(i).type);
+                    if (node.child(i).type === "compound_statement") {
+                        index = i;
+                        break;
+                    }
+                }
+                console.log("found compound_statement inside multiline");
+                console.log(node.child(index).type);
 
-                let racy_removables = removable_statements(node, 0, node.childCount);
+                let racy_removables = removable_statements(node.child(index), 0, node.child(index)?.childCount);
                 //console.log("racy removables of multiline " + JSON.stringify(racy_removables, null, 2))
                 for (let racy_item2 of racy_removables) {
                     // if the whole block wasn't in safe, neither will the child statements tbh
@@ -322,12 +334,38 @@ const try_remove = async (racy_item, safe_item, is_multiline, safeShader, racySh
                     // console.log("child type: " + racy_item2.node.child(0).type);
                     // console.log("child text: " + racy_item2.node.child(0).text);
                     // console.log(["for_statement", "if_statement", "while_statement"].includes(racy_item2.node.child(0).type));
-                    let result = await try_remove(racy_item2, null, ["for_statement", "if_statement", "while_statement", "if", "else"].includes(racy_item2.node.child(0).type), safeShader, racyShader, safeAST, racyAST, new_mismatches, shaderInfo, parser);
-                    safeShader = result.safeShader;
+                    let result = await try_remove(racy_item2, null, ["for_statement", "if_statement", "while_statement"].includes(racy_item2.node.child(0).type), safeShader, racyShader, safeAST, racyAST, new_mismatches, shaderInfo, parser);
                     racyShader = result.racyShader;
-                    safeAST = result.safeAST;
                     racyAST = result.racyAST;
-                    mismatches = result.mismatches;
+                }
+
+                if (is_else) {
+                    node = multiline_statement_node.child(1);
+
+                    let index = 0;
+                    // console.log("node type " + node.type);
+                    for (let i = 0; i < node.childCount; i++) {
+                        // console.log(node.child(i).type);
+                        if (node.child(i).type === "compound_statement") {
+                            index = i;
+                            break;
+                        }
+                    }
+                    console.log("found compound_statement inside multiline else");
+                    console.log(node.child(index).type);
+
+                    let racy_removables = removable_statements(node.child(index), 0, node.child(index)?.childCount);
+                    //console.log("racy removables of multiline " + JSON.stringify(racy_removables, null, 2))
+                    for (let racy_item3 of racy_removables) {
+                        // if the whole block wasn't in safe, neither will the child statements tbh
+                        // when iterating through child statements, need to ensure we are checking the correct level
+                        // console.log("child type: " + racy_item2.node.child(0).type);
+                        // console.log("child text: " + racy_item2.node.child(0).text);
+                        // console.log(["for_statement", "if_statement", "while_statement"].includes(racy_item2.node.child(0).type));
+                        let result = await try_remove(racy_item3, null, ["for_statement", "if_statement", "while_statement"].includes(racy_item3.node.child(0).type), safeShader, racyShader, safeAST, racyAST, new_mismatches, shaderInfo, parser);
+                        racyShader = result.racyShader;
+                        racyAST = result.racyAST;
+                    }
 
                 }
 
@@ -493,12 +531,11 @@ const removable_statements = (compound_statement, start_index, end_index) => {
     // in the case of multilines, the first child of a compound statement is {} so it's ok that we only go up to startIndex
     
     // start from end, so that first statements removed end up being from the end
-    for (let i = end_index - 1; i >= start_index; i--) {
+    for (let i = end_index - 1; i > start_index; i--) {
         // console.log("text " + compound_statement.child(i).text);
         // console.log("type " + compound_statement.child(i).type);
         // this check is included for the case in which we are finding statements inside multilines
-        let type = compound_statement.child(i).type;
-        if (type === "statement" || type === "if_clause" || type === "else_clause") {
+        if (compound_statement.child(i).type === "statement") {
             statements.push({
                 index: i,
                 text: compound_statement.child(i).text,
@@ -581,5 +618,3 @@ const removable_statements = (compound_statement, start_index, end_index) => {
 
 // ssh gpuharbor@gpuharbor.soe.ucsc.edu
 // put files inside race-reducer
-
-// ssh neabbas@gateway.soe.ucsc.edu

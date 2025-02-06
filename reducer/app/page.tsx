@@ -145,11 +145,11 @@ const ShaderRunner = () => {
 
   const getMismatches = async () => {
     try {
-      const outputs1 = await run_shader(shader1, shaderInfo);
-      const outputs2 = await run_shader(shader2, shaderInfo);
+      const outputs1 = (await run_shader(shader1, shaderInfo)) as any[] || [];
+      const outputs2 = (await run_shader(shader2, shaderInfo)) as any[] || [];
 
-      const safeArray = outputs1[0] || [];
-      const raceArray = outputs2[0] || [];
+      const safeArray = (outputs1[0] as any[]) || [];
+      const raceArray = (outputs2[0] as any[]) || [];
 
       const data_race_info = {
         safe: shaderInfo.safe || [],
@@ -160,11 +160,11 @@ const ShaderRunner = () => {
       console.log(shaderInfo);
 
       const result = analyze(safeArray, raceArray, shaderInfo, data_race_info, 1);
-      return result
+      return result;
 
     } catch (error) {
       console.error('Error running shaders or analyzing mismatches:', error);
-      return 'Error running shaders or analyzing mismatches';
+      return [];
     }
   };
 
@@ -204,7 +204,8 @@ const ShaderRunner = () => {
 
     // console.log("new safe shader:", safeShader);
     // console.log("new racy shader:", racyShader);
-    // console.log("new mismatches: ", new_mismatches);
+    console.log("page tsx new mismatches: ", new_mismatches);
+    console.log("page tsx new mismatches: ", JSON.stringify(new_mismatches, null, 2));
 
     if (!safeShader || !racyShader) {
       console.log("safeShader or racyShader is null!");
@@ -213,8 +214,8 @@ const ShaderRunner = () => {
     // set reduced outputs
     setReducedSafeShader(safeShader);
     setReducedRacyShader(racyShader);
-    // setReducedMismatches(JSON.stringify(new_mismatches, null, 2));
-    setReducedMismatches(new_mismatches);
+    setReducedMismatches(JSON.stringify(new_mismatches, null, 2));
+    // setReducedMismatches(new_mismatches);
   };
   
 
