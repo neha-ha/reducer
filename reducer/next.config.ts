@@ -28,6 +28,7 @@ const nextConfig: NextConfig = {
     return config;
   },
   output: 'export',
+  basePath: '/race-reducer',
 };
 
 export default nextConfig;
