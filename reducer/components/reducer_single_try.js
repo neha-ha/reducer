@@ -237,34 +237,31 @@ const try_remove = async (racy_item, safe_item, is_multiline, safeShader, racySh
         let keep_any = false;
         let keep_specific = false;
 
-        let all_new_mismatches = [];
         let new_mismatches = [];
 
         let new_safeShader = null;
         let new_racyShader = null;
 
-        let prevSafeShader = safeShader.slice(); 
-        let prevRacyShader = racyShader.slice();
-
         if (can_remove) {
             // remove from both shaders
 
-            
+            let safeShaderCopy = safeShader;
+            let racyShaderCopy = racyShader;
+            new_safeShader = await remove(safe_item, safeShader);
+            new_racyShader = await remove(racy_item, racyShader);
+            console.log(safeShader === safeShaderCopy); // Should be true
+            console.log(racyShader === racyShaderCopy); // Should be true
 
-            // let safeShaderCopy = safeShader;
-            // let racyShaderCopy = racyShader;
-            // new_safeShader = await remove(safe_item, safeShader);
-            // new_racyShader = await remove(racy_item, racyShader);
-            // console.log("making sure removal doesn't affect shaders")
-            // console.log(safeShader === safeShaderCopy); // Should be true
-            // console.log(racyShader === racyShaderCopy); // Should be true
+            console.log("attempting to remove from both")
+            new_safeShader = await remove(safe_item, safeShader);
+            new_racyShader = await remove(racy_item, racyShader);
+            console.log("created new ast and shader to see if mismatches changed");
 
             // check mismatches
-            all_new_mismatches = await getMismatches(new_safeShader, new_racyShader, shaderInfo);
-            console.log("all mismatches: ", all_new_mismatches)
+            new_mismatches = await getMismatches(new_safeShader, new_racyShader, shaderInfo);
 
             // fatal error
-            if (all_new_mismatches === null) {
+            if (new_mismatches === null) {
 
                 console.log("latest safe shader:")
                 console.log(createExpandableLog(safeShader))
@@ -281,22 +278,17 @@ const try_remove = async (racy_item, safe_item, is_multiline, safeShader, racySh
 
             }
 
-            // console.log("old mismatches were: ", mismatches);
-            
+            console.log("got new mismatches");
+            console.log("old mismatches were: ", JSON.stringify(mismatches, null, 2));
+
             // check modes
             // if mode is to keep same mismatches-- ensure removing a statement doesn't change the mismatches
-            // make sure every run has the same mismatches
-            keep_same = (mismatchMode === 0 && all_new_mismatches.every(arr =>
-                JSON.stringify(mismatches, null, 2) === JSON.stringify(arr, null, 2))
-            );
+            keep_same = (mismatchMode === 0 && JSON.stringify(mismatches, null, 2) === JSON.stringify(new_mismatches, null, 2));
             // if mode is keep any mismatches -- ensure removing a statement doesn't get rid of all mismatches
-            // if any runs were empty, return false
-            keep_any = (mismatchMode === 1 && all_new_mismatches.every(arr => arr.length > 0))
+            keep_any = (mismatchMode === 1 && new_mismatches.length > 0)
             // make sure you still have specific mismatches according to user
-            // make sure each run had those specific mismatches
-            keep_specific = (mismatchMode === 2 && all_new_mismatches.every(new_mismatches =>
-                matchesSpecificMismatches(new_mismatches, specificMismatches))
-            );
+            keep_specific = (mismatchMode === 2 && matchesSpecificMismatches(new_mismatches, specificMismatches))
+            console.log("completed all comparisons");
             console.log(`keep same = ${keep_same}, keep_any = ${keep_any}, keep_specific = ${keep_specific}`); 
         }
 
@@ -314,8 +306,6 @@ const try_remove = async (racy_item, safe_item, is_multiline, safeShader, racySh
         // if mismatches do change, check for multiline
         else {
             console.log("keeping statement");
-            
-            // console.log("Shader comparison after revert:", prevSafeShader === safeShader, prevRacyShader === racyShader);
 
             if (is_multiline) {
                 console.log("statement is multiline, attempting to remove children");
@@ -461,7 +451,6 @@ const try_remove = async (racy_item, safe_item, is_multiline, safeShader, racySh
         let keep_any = false;
         let keep_specific = false;
 
-        let all_new_mismatches = [];
         let new_mismatches = [];
 
         let new_racyShader = null;
@@ -473,11 +462,10 @@ const try_remove = async (racy_item, safe_item, is_multiline, safeShader, racySh
             console.log("created new ast and shader to see if mismatches changed");
 
             // check mismatches
-            all_new_mismatches = await getMismatches(safeShader, new_racyShader, shaderInfo);
-            console.log("all mismatches: ", all_new_mismatches)
+            new_mismatches = await getMismatches(safeShader, new_racyShader, shaderInfo);
 
             // fatal error
-            if (all_new_mismatches === null) {
+            if (new_mismatches === null) {
 
                 console.log("latest safe shader:")
                 console.log(createExpandableLog(safeShader))
@@ -494,23 +482,19 @@ const try_remove = async (racy_item, safe_item, is_multiline, safeShader, racySh
 
             }
 
-            // console.log("old mismatches were: ", mismatches);
+            console.log("got new mismatches");
+            console.log("old mismatches were: ", JSON.stringify(mismatches, null, 2));
             
+
             // check modes
             // if mode is to keep same mismatches-- ensure removing a statement doesn't change the mismatches
-            // make sure every run has the same mismatches
-            keep_same = (mismatchMode === 0 && all_new_mismatches.every(new_mismatches =>
-                JSON.stringify(mismatches, null, 2) === JSON.stringify(new_mismatches, null, 2))
-            );
+            keep_same = (mismatchMode === 0 && JSON.stringify(mismatches, null, 2) === JSON.stringify(new_mismatches, null, 2));
             // if mode is keep any mismatches -- ensure removing a statement doesn't get rid of all mismatches
-            // if any runs were empty, return false
-            keep_any = (mismatchMode === 1 && all_new_mismatches.every(arr => arr.length > 0))
+            keep_any = (mismatchMode === 1 && new_mismatches.length > 0)
             // make sure you still have specific mismatches according to user
-            // make sure each run had those specific mismatches
-            keep_specific = (mismatchMode === 2 && all_new_mismatches.every(new_mismatches =>
-                matchesSpecificMismatches(new_mismatches, specificMismatches))
-            );
-            console.log(`keep same = ${keep_same}, keep_any = ${keep_any}, keep_specific = ${keep_specific}`); 
+            keep_specific = (mismatchMode === 2 && matchesSpecificMismatches(new_mismatches, specificMismatches))
+            console.log("completed all comparisons");
+            console.log(`keep same = ${keep_same}, keep_any = ${keep_any}, keep_specific = ${keep_specific}`);
 
         }
 
@@ -779,44 +763,34 @@ const getMismatches = async (safeShader, racyShader, shaderInfo, retries = 3, de
 
             console.log(shaderInfo);
 
-            // console.log("latest safe shader:")
-            // console.log(createExpandableLog(safeShader))
-            // console.log("latest racy shader:")
-            // console.log(createExpandableLog(racyShader))
+            console.log("latest safe shader:")
+            console.log(createExpandableLog(safeShader))
+            console.log("latest racy shader:")
+            console.log(createExpandableLog(racyShader))
 
-            let outputs1 = [];
-            let outputs2 = [];
+            let outputs1 = await run_shader(safeShader, shaderInfo, init);
+            console.log("ran shader 1 successfully");
+            // init = await run_init(shaderInfo);
+            let outputs2 = await run_shader(racyShader, shaderInfo, init);
+            console.log("ran shader 2 successfully");
 
-            let empty = false;
-            let results = [];
+            let safeArray = outputs1[0] || [];
+            let raceArray = outputs2[0] || [];
 
-            for (let i = 0; i < retries; i++) {
-                outputs1 = await run_shader(safeShader, shaderInfo, init);
-                console.log("ran shader 1 successfully");
-                // init = await run_init(shaderInfo);
-                outputs2 = await run_shader(racyShader, shaderInfo, init);
-                console.log("ran shader 2 successfully");
+            // console.log(safeArray);
+            // console.log(raceArray);
+            
 
-                let safeArray = outputs1[0] || [];
-                let raceArray = outputs2[0] || [];
+            let data_race_info = {
+                safe: shaderInfo.safe || [],
+                safe_constants: shaderInfo.safe_constants || [],
+                constant_locs: shaderInfo.constant_locs || 0,
+            };
 
-                // console.log(safeArray);
-                // console.log(raceArray);
-                
+            const result = analyze(safeArray, raceArray, shaderInfo, data_race_info, 1);
+            console.log("get mismatches returns: " + JSON.stringify(result, null, 2));
 
-                let data_race_info = {
-                    safe: shaderInfo.safe || [],
-                    safe_constants: shaderInfo.safe_constants || [],
-                    constant_locs: shaderInfo.constant_locs || 0,
-                };
-
-                results.push(analyze(safeArray, raceArray, shaderInfo, data_race_info, 1));
-                console.log(`get mismatches ${i} returns: ${results[i]}`);
-
-            }
-
-
-            return results;
+            return result;
 
         } catch (error) {
             console.error(`Error running shaders (attempt ${attempt}):`, error);

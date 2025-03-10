@@ -1,58 +1,45 @@
 'use client';
 
-import { run_shader, run_init, free_gpu } from "./run_shader";
+import { run_shader, run_init } from "./run_shader";
 import { analyze } from "./analyze_results";
 
-// using wasm
-let Parser = require('web-tree-sitter');
-// let Parser;
-// async function loadParser() {
-//     if (!Parser) {
-//         const module = await import('web-tree-sitter');
-//         Parser = module.default;
-//     }
-// }
+// using wasm 
+const Parser = require('web-tree-sitter');
 
 // prepare for run 
 let init = null;
 
-let WGSL = null;
-let parser = null;
-
 export const reduce = async (safeShader, racyShader, shaderInfo, mismatchMode, specificMismatches) => {
-    // await loadParser();
-
+    
     // set up  parser
     async function initializeParser() {
-        if (!Parser.initialized) {
-            console.log("initializing Parser");
-            await Parser.init({
-                locateFile: (scriptName) => {
-                   return `/race-reducer/${scriptName}`;
-                }
+        await Parser.init({
+            locateFile: (scriptName) => {
+                return `/race-reducer/${scriptName}`;
+            }
 
-                // locateFile(scriptName = "tree-sitter.wasm", scriptDirectory = 'race-reducer/tree-sitter.wasm') {
-                // return scriptName;
-                // },
-            });
-        }
+            // locateFile(scriptName = "tree-sitter.wasm", scriptDirectory = 'race-reducer/tree-sitter.wasm') {
+            // return scriptName;
+            // },
+        });
     }
 
     const createParser = async () => {
         await initializeParser();
-        parser = new Parser;
-        WGSL = await Parser.Language.load('race-reducer/tree-sitter-wgsl.wasm');
+        const parser = new Parser;
+        const WGSL = await Parser.Language.load('race-reducer/tree-sitter-wgsl.wasm');
         parser.setLanguage(WGSL);
 
         console.log("parser created properly");
+
+        return parser;
     }
 
 
-    await createParser();
+    const parser = await createParser();
     // create ASTs
     let safeAST = parser.parse(safeShader);
     let racyAST = parser.parse(racyShader);
-    
 
     // // prepare for run 
     init = await run_init(shaderInfo);
@@ -106,7 +93,7 @@ export const reduce = async (safeShader, racyShader, shaderInfo, mismatchMode, s
 
     // // we will be checking if racy removable statements are also in the safe removable statements
     // // so creating a set of all the text is faster (O(1)) lookup time
-    // let safe_removables_text = new Set(safe_removables.map(safeItem => safeItem.text));
+    let safe_removables_text = new Set(safe_removables.map(safeItem => safeItem.text));
 
     // get starting number of mismatches
     let mismatches = await getMismatches(safeShader, racyShader, shaderInfo);
@@ -119,40 +106,20 @@ export const reduce = async (safeShader, racyShader, shaderInfo, mismatchMode, s
     const l = batched_items.length;
     // const l = batched_groups.length;
     let i = 1; 
-
-    let mismatches2 = mismatches;
     // iterate through batches
     for (let batch of batched_items) {
 
         
-        console.log(`checking ${i}/${l}`);
+        console.log(`${i}/${l} removed`);
         console.log(batch);
         // console.log("\n-----------\n")
-        // continue;
+        
 
         let result = await try_remove(batch[0], batch[1], true, safeShader, racyShader, mismatches, shaderInfo, parser, mismatchMode, specificMismatches, true);
-        
-        mismatches2 = await getMismatches(result.safeShader, result.racyShader, shaderInfo);
-        console.log("checking mismatches a second time: ", mismatches2)
-        // console.log("on this safe shader:")
-        // console.log(createExpandableLog(safeShader))
-        // console.log("and this racy shader:")
-        // console.log(createExpandableLog(racyShader))
 
-        if (mismatches2.length > 0) {
-            safeShader = result.safeShader;
-            racyShader = result.racyShader;
-            mismatches = result.mismatches;
-        }
-        // else {
-        //     console.log("empty mismatches, not updating values. however, trying again with a refreshed init")
-        //     await free_gpu(init);
-        //     init = await run_init(shaderInfo);
-        //     mismatches2 = await getMismatches(result.safeShader, result.racyShader, shaderInfo);
-        //     console.log("checking mismatches a third time: ", mismatches2)
-        // }
-        // console.log(createExpandableLog(safeShader));
-        // console.log(createExpandableLog(racyShader));
+        safeShader = result.safeShader;
+        racyShader = result.racyShader;
+        mismatches = result.mismatches;
 
         i += 1;
 
@@ -173,39 +140,17 @@ export const reduce = async (safeShader, racyShader, shaderInfo, mismatchMode, s
     //     let safe_item = safe_removables.find(safeItem => statementsMatch(racy_item, safeItem)) || null;
         
     //     // try removing the line & see if it affects mismatches, etc.
-    //     let result = await try_remove(racy_item, safe_item, ["for_statement", "if_statement", "while_statement", "if", "else"].includes(racy_item.node.child(0).type), safeShader, racyShader, mismatches, shaderInfo, parser, mismatchMode, specificMismatches);
+    //     let result = await try_remove(racy_item, safe_item, ["for_statement", "if_statement", "while_statement", "if", "else"].includes(racy_item.node.child(0).type), safeShader, racyShader, mismatches, shaderInfo, parser, mismatchMode, specificMismatches, init);
     //     safeShader = result.safeShader;
     //     racyShader = result.racyShader;
     //     mismatches = result.mismatches;
 
     //     await scheduler.yield();
-    //     await new Promise(res => setTimeout(res, 0));
-
-    //     if (window.requestIdleCallback) {
-    //         requestIdleCallback(() => console.log("Browser had time to run GC"));
-    //     } else {
-    //         setTimeout(() => console.log("Fallback: Browser may run GC"), 100);
-    //     }
     // }
 
     // get new mismatches
-    mismatches2 = await getMismatches(safeShader, racyShader, shaderInfo);
-    console.log("final mismatches: ", JSON.stringify(mismatches2, null, 2))
-    console.log("expected mismatches: ", JSON.stringify(mismatches, null, 2))
-
-    // clear
-
-    console.log("Memory Usage after execution:", performance.memory.usedJSHeapSize / 1024 / 1024, "MB");
-
-    await free_gpu(init);
-    init = null;
-
-    parser.setLanguage(null);
-    parser = null;
-
-    WGSL = null;
-
-    console.log("finished")
+    // mismatches = await getMismatches(safeShader, racyShader, shaderInfo);
+    // console.log("final mismatches: ", JSON.stringify(mismatches, null, 2))
 
     return [safeShader, racyShader, mismatches];
 }
@@ -237,66 +182,31 @@ const try_remove = async (racy_item, safe_item, is_multiline, safeShader, racySh
         let keep_any = false;
         let keep_specific = false;
 
-        let all_new_mismatches = [];
         let new_mismatches = [];
 
         let new_safeShader = null;
         let new_racyShader = null;
 
-        let prevSafeShader = safeShader.slice(); 
-        let prevRacyShader = racyShader.slice();
-
         if (can_remove) {
             // remove from both shaders
-
-            
-
-            // let safeShaderCopy = safeShader;
-            // let racyShaderCopy = racyShader;
-            // new_safeShader = await remove(safe_item, safeShader);
-            // new_racyShader = await remove(racy_item, racyShader);
-            // console.log("making sure removal doesn't affect shaders")
-            // console.log(safeShader === safeShaderCopy); // Should be true
-            // console.log(racyShader === racyShaderCopy); // Should be true
+            console.log("attempting to remove from both")
+            new_safeShader = await remove(safe_item, safeShader);
+            new_racyShader = await remove(racy_item, racyShader);
+            console.log("created new ast and shader to see if mismatches changed");
 
             // check mismatches
-            all_new_mismatches = await getMismatches(new_safeShader, new_racyShader, shaderInfo);
-            console.log("all mismatches: ", all_new_mismatches)
+            new_mismatches = await getMismatches(new_safeShader, new_racyShader, shaderInfo);
+            console.log("got new mismatches");
+            console.log("old mismatches were: ", JSON.stringify(mismatches, null, 2));
 
-            // fatal error
-            if (all_new_mismatches === null) {
-
-                console.log("latest safe shader:")
-                console.log(createExpandableLog(safeShader))
-                console.log("latest racy shader:")
-                console.log(createExpandableLog(racyShader))
-
-                window.alert(`
-                Failed to create WebGPU Context Provider. This error is unrecoverable.
-                    1) Save the current shaders-- available in console.log
-                    2) Quit Chrome fully (close all tabs and windows)
-                    3) Restart Chrome, paste in currrent shaders, and continue reducing.`)
-                
-                throw new Error("Fatal");
-
-            }
-
-            // console.log("old mismatches were: ", mismatches);
-            
             // check modes
             // if mode is to keep same mismatches-- ensure removing a statement doesn't change the mismatches
-            // make sure every run has the same mismatches
-            keep_same = (mismatchMode === 0 && all_new_mismatches.every(arr =>
-                JSON.stringify(mismatches, null, 2) === JSON.stringify(arr, null, 2))
-            );
+            keep_same = (mismatchMode === 0 && JSON.stringify(mismatches, null, 2) === JSON.stringify(new_mismatches, null, 2));
             // if mode is keep any mismatches -- ensure removing a statement doesn't get rid of all mismatches
-            // if any runs were empty, return false
-            keep_any = (mismatchMode === 1 && all_new_mismatches.every(arr => arr.length > 0))
+            keep_any = (mismatchMode === 1 && new_mismatches.length > 0)
             // make sure you still have specific mismatches according to user
-            // make sure each run had those specific mismatches
-            keep_specific = (mismatchMode === 2 && all_new_mismatches.every(new_mismatches =>
-                matchesSpecificMismatches(new_mismatches, specificMismatches))
-            );
+            keep_specific = (mismatchMode === 2 && matchesSpecificMismatches(new_mismatches, specificMismatches))
+            console.log("completed all comparisons");
             console.log(`keep same = ${keep_same}, keep_any = ${keep_any}, keep_specific = ${keep_specific}`); 
         }
 
@@ -304,18 +214,16 @@ const try_remove = async (racy_item, safe_item, is_multiline, safeShader, racySh
         if (keep_same || keep_any || keep_specific)  {
         // if (false) {
             console.log("permanently removed statement");
-            // console.log("new safe shader: ")
+            console.log("new safe shader: ")
             // console.log(createExpandableLog(new_safeShader))
-            // console.log("new racy shader: ")
+            console.log("new racy shader: ")
             // console.log(createExpandableLog(new_racyShader));
             // if mismatches do not change, permanently remove statement
-            return { safeShader: new_safeShader, racyShader: new_racyShader, mismatches: new_mismatches };
+            return { safeShader: new_safeShader, racyShader: new_racyShader, mismatches: mismatches };
         }
         // if mismatches do change, check for multiline
         else {
             console.log("keeping statement");
-            
-            // console.log("Shader comparison after revert:", prevSafeShader === safeShader, prevRacyShader === racyShader);
 
             if (is_multiline) {
                 console.log("statement is multiline, attempting to remove children");
@@ -425,7 +333,7 @@ const try_remove = async (racy_item, safe_item, is_multiline, safeShader, racySh
                     let safe_child = safe_removables.find(safeItem => statementsMatch(racy_item2, safeItem)) || null;
                     // console.log("safe child: ", safe_child);
                     
-                    let result = await try_remove(racy_item2, safe_child, ["for_statement", "if_statement", "while_statement", "if", "else"].includes(racy_item2.node.child(0).type), safeShader, racyShader, mismatches, shaderInfo, parser, mismatchMode, specificMismatches);
+                    let result = await try_remove(racy_item2, safe_child, ["for_statement", "if_statement", "while_statement", "if", "else"].includes(racy_item2.node.child(0).type), safeShader, racyShader, new_mismatches, shaderInfo, parser, mismatchMode, specificMismatches);
                     safeShader = result.safeShader;
                     racyShader = result.racyShader;
                     mismatches = result.mismatches;
@@ -461,7 +369,6 @@ const try_remove = async (racy_item, safe_item, is_multiline, safeShader, racySh
         let keep_any = false;
         let keep_specific = false;
 
-        let all_new_mismatches = [];
         let new_mismatches = [];
 
         let new_racyShader = null;
@@ -473,44 +380,20 @@ const try_remove = async (racy_item, safe_item, is_multiline, safeShader, racySh
             console.log("created new ast and shader to see if mismatches changed");
 
             // check mismatches
-            all_new_mismatches = await getMismatches(safeShader, new_racyShader, shaderInfo);
-            console.log("all mismatches: ", all_new_mismatches)
-
-            // fatal error
-            if (all_new_mismatches === null) {
-
-                console.log("latest safe shader:")
-                console.log(createExpandableLog(safeShader))
-                console.log("latest racy shader:")
-                console.log(createExpandableLog(racyShader))
-
-                window.alert(`
-                Failed to create WebGPU Context Provider. This error is unrecoverable.
-                    1) Save the current shaders-- available in console.log
-                    2) Quit Chrome fully (close all tabs and windows)
-                    3) Restart Chrome, paste in currrent shaders, and continue reducing.`)
-                
-                throw new Error("Fatal");
-
-            }
-
-            // console.log("old mismatches were: ", mismatches);
+            new_mismatches = await getMismatches(safeShader, new_racyShader, shaderInfo);
+            console.log("got new mismatches");
+            console.log("old mismatches were: ", JSON.stringify(mismatches, null, 2));
             
+
             // check modes
             // if mode is to keep same mismatches-- ensure removing a statement doesn't change the mismatches
-            // make sure every run has the same mismatches
-            keep_same = (mismatchMode === 0 && all_new_mismatches.every(new_mismatches =>
-                JSON.stringify(mismatches, null, 2) === JSON.stringify(new_mismatches, null, 2))
-            );
+            keep_same = (mismatchMode === 0 && JSON.stringify(mismatches, null, 2) === JSON.stringify(new_mismatches, null, 2));
             // if mode is keep any mismatches -- ensure removing a statement doesn't get rid of all mismatches
-            // if any runs were empty, return false
-            keep_any = (mismatchMode === 1 && all_new_mismatches.every(arr => arr.length > 0))
+            keep_any = (mismatchMode === 1 && new_mismatches.length > 0)
             // make sure you still have specific mismatches according to user
-            // make sure each run had those specific mismatches
-            keep_specific = (mismatchMode === 2 && all_new_mismatches.every(new_mismatches =>
-                matchesSpecificMismatches(new_mismatches, specificMismatches))
-            );
-            console.log(`keep same = ${keep_same}, keep_any = ${keep_any}, keep_specific = ${keep_specific}`); 
+            keep_specific = (mismatchMode === 2 && matchesSpecificMismatches(new_mismatches, specificMismatches))
+            console.log("completed all comparisons");
+            console.log(`keep same = ${keep_same}, keep_any = ${keep_any}, keep_specific = ${keep_specific}`);
 
         }
 
@@ -518,14 +401,13 @@ const try_remove = async (racy_item, safe_item, is_multiline, safeShader, racySh
         // if (false) {
             // if mismatches do not change, permanently remove statement
             console.log("permanently removed statement");
-            // console.log("new racy shader: ")
+            console.log("new racy shader: ")
             // console.log(createExpandableLog(new_racyShader));
-            return { safeShader, racyShader: new_racyShader, mismatches: new_mismatches };
+            return { safeShader, racyShader: new_racyShader, mismatches: mismatches };
         }
-        // if mismatches do change, revert- pretend you never did anything 
+        // if mismatchs do change, revert- pretend you never did anything 
         else {
             console.log("keeping statement");
-
             // unless multiline
             if (is_multiline) {
                 console.log("statement is multiline, attempting to remove children");
@@ -585,7 +467,7 @@ const try_remove = async (racy_item, safe_item, is_multiline, safeShader, racySh
                     // console.log("child type: " + racy_item2.node.child(0).type);
                     // console.log("child text: " + racy_item2.node.child(0).text);
                     // console.log(["for_statement", "if_statement", "while_statement"].includes(racy_item2.node.child(0).type));
-                    let result = await try_remove(racy_item2, null, ["for_statement", "if_statement", "while_statement", "if", "else"].includes(racy_item2.node.child(0).type), safeShader, racyShader, mismatches, shaderInfo, parser, mismatchMode, specificMismatches);
+                    let result = await try_remove(racy_item2, null, ["for_statement", "if_statement", "while_statement", "if", "else"].includes(racy_item2.node.child(0).type), safeShader, racyShader, new_mismatches, shaderInfo, parser, mismatchMode, specificMismatches);
                     safeShader = result.safeShader;
                     racyShader = result.racyShader;
                     mismatches = result.mismatches;
@@ -777,54 +659,51 @@ const getMismatches = async (safeShader, racyShader, shaderInfo, retries = 3, de
         try {
             console.log(`Attempt ${attempt} to run shaders...`);
 
-            console.log(shaderInfo);
+            let outputs1 = await run_shader(safeShader, shaderInfo, init);
+            console.log("ran shader 1 successfully");
+            // init = await run_init(shaderInfo);
+            let outputs2 = await run_shader(racyShader, shaderInfo, init);
+            console.log("ran shader 2 successfully");
 
-            // console.log("latest safe shader:")
-            // console.log(createExpandableLog(safeShader))
-            // console.log("latest racy shader:")
-            // console.log(createExpandableLog(racyShader))
+            let safeArray = outputs1[0] || [];
+            let raceArray = outputs2[0] || [];
 
-            let outputs1 = [];
-            let outputs2 = [];
+            // console.log(safeArray);
+            // console.log(raceArray);
+            
 
-            let empty = false;
-            let results = [];
+            let data_race_info = {
+                safe: shaderInfo.safe || [],
+                safe_constants: shaderInfo.safe_constants || [],
+                constant_locs: shaderInfo.constant_locs || 0,
+            };
 
-            for (let i = 0; i < retries; i++) {
-                outputs1 = await run_shader(safeShader, shaderInfo, init);
-                console.log("ran shader 1 successfully");
-                // init = await run_init(shaderInfo);
-                outputs2 = await run_shader(racyShader, shaderInfo, init);
-                console.log("ran shader 2 successfully");
+            const result = analyze(safeArray, raceArray, shaderInfo, data_race_info, 1);
+            console.log("get mismatches returns: " + JSON.stringify(result, null, 2));
 
-                let safeArray = outputs1[0] || [];
-                let raceArray = outputs2[0] || [];
+            // clear data
+            // safeArray = null;
+            // raceArray = null;
+            // outputs1 = null;
+            // outputs2 = null;
+            // data_race_info = null;
 
-                // console.log(safeArray);
-                // console.log(raceArray);
-                
-
-                let data_race_info = {
-                    safe: shaderInfo.safe || [],
-                    safe_constants: shaderInfo.safe_constants || [],
-                    constant_locs: shaderInfo.constant_locs || 0,
-                };
-
-                results.push(analyze(safeArray, raceArray, shaderInfo, data_race_info, 1));
-                console.log(`get mismatches ${i} returns: ${results[i]}`);
-
-            }
-
-
-            return results;
+            return result;
 
         } catch (error) {
             console.error(`Error running shaders (attempt ${attempt}):`, error);
 
             if (error.message.includes("init is not iterable")) {
-
-                return null;
+                console.log("Saving shaders and reloading...");
                 
+                // ✅ Save shaders in localStorage
+                localStorage.setItem("safeShader", safeShader);
+                localStorage.setItem("racyShader", racyShader);
+                localStorage.setItem("shaderInfo", JSON.stringify(shaderInfo));
+
+                // ✅ Reload the page to reset WebGPU
+                window.location.reload();
+                return null;
             }
 
             // If AbortError occurs, retry after a short delay
@@ -928,24 +807,20 @@ const find_end = (compound_statement, start_index) => {
 }
       
 // remove a line or block represented by node from the shader and regenerate the tree
-const remove = async (block, code, retries = 3, delay = 1000) => {
+const remove = async (node, code, retries = 3, delay = 1000) => {
 
     let start = null;
     let end = null;
 
-    if (Array.isArray(block)) {
-        end = block[0].node.endIndex;
-        start = block[block.length-1].node.startIndex;
-        // console.log("start index array: ", start)
-        // console.log("end index array ", end)
+    if (Array.isArray(node)) {
+        start = node[0].node.startIndex;
+        end = node[node.length-1].node.endIndex;
     }
     else {
-        start = block.node.startIndex;
-        end = block.node.endIndex;
+        start = node.node.startIndex;
+        end = node.node.endIndex;
     }
     
-    console.log(`Attempting to remove: ${code.slice(start, end)}`);
-
     // // get byte positions of the text-- these correspond to the start and end of text to remove from the shader
     // let start = node.startIndex; // Byte offset start
     // let end = node.endIndex;     // Byte offset end
@@ -954,8 +829,7 @@ const remove = async (block, code, retries = 3, delay = 1000) => {
     // //console.log(start, end, startPos, endPos);
     
     // remove from source code
-    // let reduced_code = code.slice(0, start) + code.slice(end);
-    //let reduced_code = fastBufferRemove(code, start, end);
+    let reduced_code = code.slice(0, start) + code.slice(end);
     
     // taking out the below part of the code
     // just editing the tree is faster, but since i want to check mismatches i want both the old and new trees / code
@@ -974,12 +848,7 @@ const remove = async (block, code, retries = 3, delay = 1000) => {
     //   newEndPosition: startPos, // No new content, so it's the same as startPosition
     // });
 
-    // let reduced_tree = parser.parse(reduced_code);
-    // return [reduced_tree, reduced_code];
-
-    //return reduced_code;
-    return code.substring(0, start) + code.substring(end);
-
+    return reduced_code;
 
     // for (let attempt = 1; attempt <= retries; attempt++) {
     //     try {
@@ -1003,20 +872,7 @@ const remove = async (block, code, retries = 3, delay = 1000) => {
     // }
      
 }
-
-const fastBufferRemove = (code, start, end) => {
-    let encoder = new TextEncoder();
-    let decoder = new TextDecoder();
-
-    let bytes = encoder.encode(code);
-    let newBytes = new Uint8Array(bytes.length - (end - start));
-
-    newBytes.set(bytes.subarray(0, start), 0);
-    newBytes.set(bytes.subarray(end), start);
-
-    return decoder.decode(newBytes);
-};
-
+      
 const removable_statements = (compound_statement, start_index, end_index) => {
     let statements = [];
     
@@ -1049,9 +905,9 @@ const matchesSpecificMismatches = (currentMismatches, specificMismatches) => {
     // Ensure every specific mismatch is found in the current mismatches
     return specificMismatches.every((specific) => 
       currentMismatches.some((current) =>
-        // current.rep === specific.rep &&
-        // current.thread === specific.thread &&
-        // current.index === specific.index &&
+        current.rep === specific.rep &&
+        current.thread === specific.thread &&
+        current.index === specific.index &&
         current.expected === specific.expected &&
         current.actual === specific.actual
       )
