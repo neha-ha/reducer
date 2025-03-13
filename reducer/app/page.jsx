@@ -109,8 +109,8 @@ const ShaderRunner = () => {
   // const [shader2, setShader2] = useState(() => localStorage.getItem("racyShader") || '');
   const [shader1Output, setShader1Output] = useState(null);
   const [shader2Output, setShader2Output] = useState(null);
-  const [workgroupSize, setWorkgroupSize] = useState('117');
-  const [workgroups, setWorkgroups] = useState('12');
+  const [workgroupSize, setWorkgroupSize] = useState('9');
+  const [workgroups, setWorkgroups] = useState('60');
   const [jsonInput, setJsonInput] = useState('');
   const [shaderInfo, setShaderInfo] = useState({
     workgroup_size: workgroupSize,

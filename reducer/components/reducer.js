@@ -28,7 +28,7 @@ export const reduce = async (safeShader, racyShader, shaderInfo, mismatchMode, s
             console.log("initializing Parser");
             await Parser.init({
                 locateFile: (scriptName) => {
-                   return `/race-reducer/${scriptName}`;
+                   return `${scriptName}`;
                 }
 
                 // locateFile(scriptName = "tree-sitter.wasm", scriptDirectory = 'race-reducer/tree-sitter.wasm') {
@@ -41,7 +41,7 @@ export const reduce = async (safeShader, racyShader, shaderInfo, mismatchMode, s
     const createParser = async () => {
         await initializeParser();
         parser = new Parser;
-        WGSL = await Parser.Language.load('race-reducer/tree-sitter-wgsl.wasm');
+        WGSL = await Parser.Language.load('tree-sitter-wgsl.wasm');
         parser.setLanguage(WGSL);
 
         console.log("parser created properly");
