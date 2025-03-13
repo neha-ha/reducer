@@ -225,7 +225,10 @@ const ShaderRunner = () => {
       const raceArray = (outputs2[0]) || [];
 
       console.log("safe array ", safeArray);
-      console.log("racy array ", raceArray)
+      console.log("racy array ", raceArray);
+
+      console.log("debug safe: ", outputs1[5])
+      console.log("debug racy: ", outputs2[5])
 
       const data_race_info = {
         safe: shaderInfo.safe || [],

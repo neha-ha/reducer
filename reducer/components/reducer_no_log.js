@@ -243,14 +243,18 @@ const try_remove = async (racy_item, safe_item, is_multiline, safeShader, racySh
         let new_safeShader = null;
         let new_racyShader = null;
 
+        let prevSafeShader = safeShader.slice(); 
+        let prevRacyShader = racyShader.slice();
+
         if (can_remove) {
             // remove from both shaders
+
             
 
             // let safeShaderCopy = safeShader;
             // let racyShaderCopy = racyShader;
-            new_safeShader = await remove(safe_item, safeShader);
-            new_racyShader = await remove(racy_item, racyShader);
+            // new_safeShader = await remove(safe_item, safeShader);
+            // new_racyShader = await remove(racy_item, racyShader);
             // console.log("making sure removal doesn't affect shaders")
             // console.log(safeShader === safeShaderCopy); // Should be true
             // console.log(racyShader === racyShaderCopy); // Should be true
@@ -775,14 +779,15 @@ const getMismatches = async (safeShader, racyShader, shaderInfo, retries = 3, de
 
             console.log(shaderInfo);
 
-            console.log("latest safe shader:")
-            console.log(createExpandableLog(safeShader))
-            console.log("latest racy shader:")
-            console.log(createExpandableLog(racyShader))
+            // console.log("latest safe shader:")
+            // console.log(createExpandableLog(safeShader))
+            // console.log("latest racy shader:")
+            // console.log(createExpandableLog(racyShader))
 
             let outputs1 = [];
             let outputs2 = [];
 
+            let empty = false;
             let results = [];
 
             for (let i = 0; i < retries; i++) {
@@ -795,9 +800,6 @@ const getMismatches = async (safeShader, racyShader, shaderInfo, retries = 3, de
                 let safeArray = outputs1[0] || [];
                 let raceArray = outputs2[0] || [];
 
-                console.log("debug safe: ", outputs1[5])
-                console.log("debug racy: ", outputs2[5])
-
                 // console.log(safeArray);
                 // console.log(raceArray);
                 
@@ -809,7 +811,7 @@ const getMismatches = async (safeShader, racyShader, shaderInfo, retries = 3, de
                 };
 
                 results.push(analyze(safeArray, raceArray, shaderInfo, data_race_info, 1));
-                console.log(`get mismatches run ${i} returns: ${results[i]}`);
+                console.log(`get mismatches ${i} returns: ${results[i]}`);
 
             }
 
@@ -913,8 +915,7 @@ const find_start = (compound_statement) => {
       
 const find_end = (compound_statement, start_index) => {
             
-    // let end_text = `dummy`;
-    let end_text = `debug`;
+    let end_text = `dummy`;
       
     // no need to start from the beginning- for efficiency, can start searching after start_index
     for (let i = start_index + 1; i < compound_statement.childCount; i++) {

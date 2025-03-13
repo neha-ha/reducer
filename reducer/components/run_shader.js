@@ -45,6 +45,7 @@ export async function run_init(shader_info, retries = 3, delay = 1000) {
             const index_arr = new Uint8Array(index_size);
             const data_arr = new Uint8Array(256 * 4);
             const output_arr = new Uint8Array(output_size);
+            const debug_arr = new Uint8Array(4);
         
             for (let i = 0; i < index_arr.byteLength; i++) {
                 if (i % 4 == 0) {
@@ -95,8 +96,14 @@ export async function run_init(shader_info, retries = 3, delay = 1000) {
                 size: output_arr.byteLength,
                 usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC	
             }));
+            gpuBuffers.push(device.createBuffer({
+                label: "debug",
+                mappedAtCreation: true,
+                size: debug_arr.byteLength,
+                usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC	
+            }));
         
-            let arr_list = [mem_arr, unit_arr, index_arr, data_arr, output_arr]
+            let arr_list = [mem_arr, unit_arr, index_arr, data_arr, output_arr, debug_arr]
             for (let i = 0; i < gpuBuffers.length; i++) {
                 const arrayBufferArray = gpuBuffers[i].getMappedRange();
                 new Uint8Array(arrayBufferArray).set(arr_list[i]);
@@ -104,7 +111,7 @@ export async function run_init(shader_info, retries = 3, delay = 1000) {
             }
         
             let layoutEntries = [];
-            for (let i = 0; i < 5; i++) {
+            for (let i = 0; i < arr_list.length; i++) {
                 layoutEntries.push({
                     binding: i,
                     visibility: GPUShaderStage.COMPUTE,
