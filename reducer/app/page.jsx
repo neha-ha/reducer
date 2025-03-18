@@ -71,7 +71,7 @@
 // if mismatches change keep statement
 /// start at satemetne lefvel move up form there
 // remove blocks entirely, if needed remove statements inside
-// 	if (local_invocation_id.x < 2u) {
+//  if (local_invocation_id.x < 2u) {
 //  (workgroup_buf)[0u] = 0u;
 //} do not remove
 
@@ -109,8 +109,8 @@ const ShaderRunner = () => {
   // const [shader2, setShader2] = useState(() => localStorage.getItem("racyShader") || '');
   const [shader1Output, setShader1Output] = useState(null);
   const [shader2Output, setShader2Output] = useState(null);
-  const [workgroupSize, setWorkgroupSize] = useState('9');
-  const [workgroups, setWorkgroups] = useState('60');
+  const [workgroupSize, setWorkgroupSize] = useState('60');
+  const [workgroups, setWorkgroups] = useState('9');
   const [jsonInput, setJsonInput] = useState('');
   const [shaderInfo, setShaderInfo] = useState({
     workgroup_size: workgroupSize,
@@ -147,6 +147,23 @@ const ShaderRunner = () => {
   const [specificMismatches, setSpecificMismatches] = useState(null);
   // track whether shaders were restored or not
   const [restoredFromStorage, setRestoredFromStorage] = useState(false);
+
+  const updateWorkgroups = (newValue) => {
+    setWorkgroups(newValue);
+    setShaderInfo((prev) => ({
+      ...prev,
+      workgroups: newValue,
+    }));
+  };
+  
+  const updateWorkgroupSize = (newValue) => {
+    setWorkgroupSize(newValue);
+    setShaderInfo((prev) => ({
+      ...prev,
+      workgroup_size: newValue,
+    }));
+  };
+  
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -376,7 +393,7 @@ const ShaderRunner = () => {
               id="workgroups"
               style={styles.thinTextArea}
               value={workgroups}
-              onChange={(e) => setWorkgroups(e.target.value)}
+              onChange={(e) => updateWorkgroups(e.target.value)}
               placeholder="Enter workgroups"
             />
           </div>
@@ -386,7 +403,7 @@ const ShaderRunner = () => {
               id="workgroupSize"
               style={styles.thinTextArea}
               value={workgroupSize}
-              onChange={(e) => setWorkgroupSize(e.target.value)}
+              onChange={(e) => updateWorkgroupSize(e.target.value)}
               placeholder="Enter workgroup size"
             />
           </div>
