@@ -68,46 +68,49 @@ export async function run_init(shader_info, retries = 3, delay = 1000) {
             let gpuBuffers = [];
             gpuBuffers.push(device.createBuffer({
                 label: "memory",
-                mappedAtCreation: true,
                 size: mem_arr.byteLength,
-                usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC	
+                usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC	 | GPUBufferUsage.COPY_DST
             }));
             gpuBuffers.push(device.createBuffer({
                 label: "uninitialized",
-                mappedAtCreation: true,
                 size: unit_arr.byteLength,
-                usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC	
+                usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC	| GPUBufferUsage.COPY_DST
             }));
             gpuBuffers.push(device.createBuffer({
                 label: "index",
-                mappedAtCreation: true,
                 size: index_arr.byteLength,
-                usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC	
+                usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC	 | GPUBufferUsage.COPY_DST
             }));
             gpuBuffers.push(device.createBuffer({
                 label: "data",
-                mappedAtCreation: true,
                 size: data_arr.byteLength,
-                usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC	
+                usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC	| GPUBufferUsage.COPY_DST
             }));
             gpuBuffers.push(device.createBuffer({
                 label: "output",
-                mappedAtCreation: true,
                 size: output_arr.byteLength,
-                usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC	
+                usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC	 | GPUBufferUsage.COPY_DST
             }));
             gpuBuffers.push(device.createBuffer({
                 label: "debug",
-                mappedAtCreation: true,
                 size: debug_arr.byteLength,
-                usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC	
+                usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC	| GPUBufferUsage.COPY_DST
             }));
         
             let arr_list = [mem_arr, unit_arr, index_arr, data_arr, output_arr, debug_arr]
-            for (let i = 0; i < gpuBuffers.length; i++) {
-                const arrayBufferArray = gpuBuffers[i].getMappedRange();
+
+            let writeBuffers = [];
+            for (let i = 0; i < arr_list.length; i++) {
+                writeBuffers.push(device.createBuffer({
+                    size: arr_list[i].byteLength,
+                    mappedAtCreation: true,
+                    usage: GPUBufferUsage.COPY_SRC | GPUBufferUsage.MAP_WRITE
+                }));
+            }
+            for (let i = 0; i < writeBuffers.length; i++) {
+                const arrayBufferArray = writeBuffers[i].getMappedRange();
                 new Uint8Array(arrayBufferArray).set(arr_list[i]);
-                gpuBuffers[i].unmap();
+                writeBuffers[i].unmap();
             }
         
             let layoutEntries = [];
@@ -150,11 +153,12 @@ export async function run_init(shader_info, retries = 3, delay = 1000) {
                     usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ
                 }));
             }
-        
+
+       
             let outputBuffers = []
         
         
-            return [device, readBuffers, outputBuffers, gpuBuffers, arr_list, bindGroupLayout, bindGroup]
+            return [device, readBuffers, writeBuffers, outputBuffers, gpuBuffers, arr_list, bindGroupLayout, bindGroup]
 
 
         } catch (error) {
@@ -176,7 +180,7 @@ export async function run_init(shader_info, retries = 3, delay = 1000) {
 
 export async function run_shader(shader, shader_info, init) {
     // console.log("init ", init);
-    let [device, readBuffers, outputBuffers, gpuBuffers, arr_list, bindGroupLayout, bindGroup] = init
+    let [device, readBuffers, writeBuffers, outputBuffers, gpuBuffers, arr_list, bindGroupLayout, bindGroup] = init
     
     let shaderModule = device.createShaderModule({
         code: shader
@@ -194,6 +198,17 @@ export async function run_shader(shader, shader_info, init) {
     });
 
     let commandEncoder = device.createCommandEncoder();
+
+    // re-initialize device buffer data
+    for (let i = 0; i < arr_list.length; i++) {
+        commandEncoder.copyBufferToBuffer(
+            writeBuffers[i] /* source buffer */,
+            0 /* source offset */,
+            gpuBuffers[i] /* destination buffer */,
+            0 /* destination offset */,
+            arr_list[i].byteLength /* size */
+        );
+    }
     let passEncoder = commandEncoder.beginComputePass();
     passEncoder.setPipeline(computePipeline);
     passEncoder.setBindGroup(0, bindGroup);
@@ -210,8 +225,6 @@ export async function run_shader(shader, shader_info, init) {
     outputBuffers = []
 
     for (let i = 0; i < arr_list.length; i++) {
-        commandEncoder.clearBuffer(readBuffers[i])
-
         commandEncoder.copyBufferToBuffer(
             gpuBuffers[i] /* source buffer */,
             0 /* source offset */,
@@ -244,7 +257,7 @@ export async function run_shader(shader, shader_info, init) {
 
 
 
-    console.log("Memory Usage:", performance.memory.usedJSHeapSize / 1024 / 1024, "MB");
+    //console.log("Memory Usage:", performance.memory.usedJSHeapSize / 1024 / 1024, "MB");
 
     return outputBuffers;
 }

@@ -62,33 +62,33 @@ export const reduce = async (safeShader, racyShader, shaderInfo, mismatchMode, s
     // compound_statement is the stuff inside the @compute block where we can remove lines or blocks
     let [safe_compound_indexes, safe_compound_statement] = find_compound_statement(safeAST, []);
 
-    console.log("found safe compound_statement inside @compute block")
-    console.log("indexes leading to the safe compound_statement: " + safe_compound_indexes);
+    //console.log("found safe compound_statement inside @compute block")
+    //console.log("indexes leading to the safe compound_statement: " + safe_compound_indexes);
     // console.log("compound statement: " + safe_compound_statement.text);
     
     let [racy_compound_indexes , racy_compound_statement] = find_compound_statement(racyAST, []);
 
-    console.log("found racy compound_statement inside @compute block")
-    console.log("indexes leading to the racy compound_statement: " + racy_compound_indexes);
+    //console.log("found racy compound_statement inside @compute block")
+    //console.log("indexes leading to the racy compound_statement: " + racy_compound_indexes);
     // console.log("compound statement: " + racy_compound_statement.text);
     
     // start is inside the compound_statement
     let [safe_start_index, safe_start] = find_start(safe_compound_statement);
     let [racy_start_index, racy_start] = find_start(racy_compound_statement);
 
-    console.log("found safe start: \n" + safe_start.text);
-    console.log("at " + safe_start_index);
-    console.log("found racy start: \n" + racy_start.text);
-    console.log("at " + racy_start_index);
+    //console.log("found safe start: \n" + safe_start.text);
+    //console.log("at " + safe_start_index);
+    //console.log("found racy start: \n" + racy_start.text);
+    //console.log("at " + racy_start_index);
 
     // end is also inside the compound_statement
     let [safe_end_index, safe_end] = find_end(safe_compound_statement, safe_start_index);
     let [racy_end_index, racy_end] = find_end(racy_compound_statement, racy_start_index);
 
-    console.log("found safe end: " + safe_end.text);
-    console.log("at " + safe_end_index);
-    console.log("found racy end: " + racy_end.text);
-    console.log("at " + racy_end_index);
+    //console.log("found safe end: " + safe_end.text);
+    //console.log("at " + safe_end_index);
+    //console.log("found racy end: " + racy_end.text);
+    //console.log("at " + racy_end_index);
 
     // originally-- was thinking of a for loop to remove statements, but as things are removed it messes with ordering 
     // plus constantly making new trees to compare
@@ -110,7 +110,7 @@ export const reduce = async (safeShader, racyShader, shaderInfo, mismatchMode, s
 
     // get starting number of mismatches
     let mismatches = await getMismatches(safeShader, racyShader, shaderInfo);
-    console.log("initial mismatches: ", JSON.stringify(mismatches, null, 2))
+    //console.log(`initial number of mismatches: ${mismatches.length}`);
 
     // batch objects
     let batched_items = batchConsecutiveObjects(racy_removables, safe_removables);
@@ -126,24 +126,31 @@ export const reduce = async (safeShader, racyShader, shaderInfo, mismatchMode, s
 
         
         console.log(`checking ${i}/${l}`);
-        console.log(batch);
+        //console.log(batch);
         // console.log("\n-----------\n")
         // continue;
 
         let result = await try_remove(batch[0], batch[1], true, safeShader, racyShader, mismatches, shaderInfo, parser, mismatchMode, specificMismatches, true);
         
         mismatches2 = await getMismatches(result.safeShader, result.racyShader, shaderInfo);
-        console.log("checking mismatches a second time: ", mismatches2)
-        // console.log("on this safe shader:")
-        // console.log(createExpandableLog(safeShader))
-        // console.log("and this racy shader:")
-        // console.log(createExpandableLog(racyShader))
+        //console.log(`batch ${i} mismatches: ${mismatches2.length}`);
 
-        if (mismatches2.length > 0) {
+        let mismatches_remain = false;
+        for (let run of mismatches2) {
+          if (run.length > 0) {
+            mismatches_remain = true;
+            console.log("mismatches after batch " + i + ": " + run.length);
+          }
+        }
+
+        if (mismatches_remain) {
             safeShader = result.safeShader;
             racyShader = result.racyShader;
             mismatches = result.mismatches;
+        } else {
+          console.log("warn: no mismatches after try_remove batch " + i);
         }
+        i += 1
         // else {
         //     console.log("empty mismatches, not updating values. however, trying again with a refreshed init")
         //     await free_gpu(init);
@@ -154,16 +161,16 @@ export const reduce = async (safeShader, racyShader, shaderInfo, mismatchMode, s
         // console.log(createExpandableLog(safeShader));
         // console.log(createExpandableLog(racyShader));
 
-        i += 1;
+        //i += 1;
 
         await scheduler.yield();
         await new Promise(res => setTimeout(res, 0));
 
-        if (window.requestIdleCallback) {
-            requestIdleCallback(() => console.log("Browser had time to run GC"));
-        } else {
-            setTimeout(() => console.log("Fallback: Browser may run GC"), 100);
-        }
+//        if (window.requestIdleCallback) {
+//            requestIdleCallback(() => console.log("Browser had time to run GC"));
+//        } else {
+//            setTimeout(() => console.log("Fallback: Browser may run GC"), 100);
+//        }
 
     }
 
@@ -191,7 +198,13 @@ export const reduce = async (safeShader, racyShader, shaderInfo, mismatchMode, s
     // get new mismatches
     mismatches2 = await getMismatches(safeShader, racyShader, shaderInfo);
     console.log("final mismatches: ", JSON.stringify(mismatches2, null, 2))
-    console.log("expected mismatches: ", JSON.stringify(mismatches, null, 2))
+    console.log("final safe shader:")
+    console.log(safeShader)
+    console.log("final racy shader:")
+    console.log(racyShader)
+
+
+    //console.log("expected mismatches: ", JSON.stringify(mismatches, null, 2))
 
     // clear
 
@@ -213,9 +226,9 @@ export const reduce = async (safeShader, racyShader, shaderInfo, mismatchMode, s
   
 const try_remove = async (racy_item, safe_item, is_multiline, safeShader, racyShader, mismatches, shaderInfo, parser, mismatchMode, specificMismatches, initial = false) => {
         
-    console.log('item:\n', racy_item.text)
-    console.log(`item:\n ${racy_item[0]?.text} \nto:\n ${racy_item[racy_item.length-1]?.text}`);
-    console.log(initial);
+    //console.log('item:\n', racy_item.text)
+    //console.log(`item:\n ${racy_item[0]?.text} \nto:\n ${racy_item[racy_item.length-1]?.text}`);
+    //console.log(initial);
 
     // if the line exists in safe too
     if ((initial && safe_item.length > 0) || (!initial && safe_item)) {
@@ -257,7 +270,7 @@ const try_remove = async (racy_item, safe_item, is_multiline, safeShader, racySh
 
             // check mismatches
             all_new_mismatches = await getMismatches(new_safeShader, new_racyShader, shaderInfo);
-            console.log("all mismatches: ", all_new_mismatches)
+            //console.log("all mismatches: ", all_new_mismatches)
 
             // fatal error
             if (all_new_mismatches === null) {
@@ -286,14 +299,14 @@ const try_remove = async (racy_item, safe_item, is_multiline, safeShader, racySh
                 JSON.stringify(mismatches, null, 2) === JSON.stringify(arr, null, 2))
             );
             // if mode is keep any mismatches -- ensure removing a statement doesn't get rid of all mismatches
-            // if any runs were empty, return false
-            keep_any = (mismatchMode === 1 && all_new_mismatches.every(arr => arr.length > 0))
+            // if all runs were empty, return false
+            keep_any = (mismatchMode === 1 && all_new_mismatches.some(arr => arr.length > 0))
             // make sure you still have specific mismatches according to user
             // make sure each run had those specific mismatches
             keep_specific = (mismatchMode === 2 && all_new_mismatches.every(new_mismatches =>
                 matchesSpecificMismatches(new_mismatches, specificMismatches))
             );
-            console.log(`keep same = ${keep_same}, keep_any = ${keep_any}, keep_specific = ${keep_specific}`); 
+            //console.log(`keep same = ${keep_same}, keep_any = ${keep_any}, keep_specific = ${keep_specific}`); 
         }
 
 
@@ -321,7 +334,7 @@ const try_remove = async (racy_item, safe_item, is_multiline, safeShader, racySh
 
                 if (! initial) {
 
-                    console.log("finding if/while/for_statement");
+                    //console.log("finding if/while/for_statement");
                     let multiline_statement_node = racy_item.node;
                     let multiline_statement_index = 0;
                     for (let i = 0; i < racy_item.node.childCount; i++) {
@@ -332,7 +345,7 @@ const try_remove = async (racy_item, safe_item, is_multiline, safeShader, racySh
                             break;
                         }
                     }
-                    console.log("found " + multiline_statement_node.type);
+                    //console.log("found " + multiline_statement_node.type);
 
 
                     
@@ -346,16 +359,16 @@ const try_remove = async (racy_item, safe_item, is_multiline, safeShader, racySh
                     let racy_node = node;
                     let safe_node = safe_item.node.child(multiline_statement_index);
 
-                    console.log('initial racy and safe node types: ')
-                    console.log(racy_node.type)
-                    console.log(safe_node.type);
+                    //console.log('initial racy and safe node types: ')
+                    //console.log(racy_node.type)
+                    //console.log(safe_node.type);
 
                     if (! is_if) {
                         
-                        console.log("finding compound_statement inside while/for_statement or if/else_clause");
+                        //console.log("finding compound_statement inside while/for_statement or if/else_clause");
                     
                         let index = 0;
-                        console.log("node type " + node.type);
+                        //console.log("node type " + node.type);
                         for (let i = 0; i < node.childCount; i++) {
                             // console.log(node.child(i).type);
                             if (node.child(i).type === "compound_statement") {
@@ -363,25 +376,25 @@ const try_remove = async (racy_item, safe_item, is_multiline, safeShader, racySh
                                 break;
                             }
                         }
-                        console.log("found compound_statement inside multiline");
-                        console.log(node.child(index).type);
+                        //console.log("found compound_statement inside multiline");
+                        //console.log(node.child(index).type);
 
                         // if the multiline block is shared between safe and racy the compound statement should be at the same index relatively
 
                         if (is_else_clause || is_if_clause) {
-                            console.log("here");
+                            //console.log("here");
                             racy_node = node.child(index);
                             safe_node = safe_item.node.child(index);
                             //safe_node = safe_node.child(index);
-                            console.log("racy node " + racy_node.type)
-                            console.log("safe node " + safe_node.type)
+                            //console.log("racy node " + racy_node.type)
+                            //console.log("safe node " + safe_node.type)
                         }
                         else {
                             racy_node = node.child(index);
                             safe_node = safe_item.node.child(multiline_statement_index);
                             safe_node = safe_node.child(index);
-                            console.log("racy node " + racy_node.type)
-                            console.log("safe node " + safe_node.type)
+                            //console.log("racy node " + racy_node.type)
+                            //console.log("safe node " + safe_node.type)
                         }
                         
                         
@@ -429,7 +442,7 @@ const try_remove = async (racy_item, safe_item, is_multiline, safeShader, racySh
 
             }
 
-            console.log("done trying to remove kids");
+            //console.log("done trying to remove kids");
         }
         
 
@@ -449,7 +462,7 @@ const try_remove = async (racy_item, safe_item, is_multiline, safeShader, racySh
             
             if (node.type === "if_clause" && after_if.trim().slice(0,4) === "else") {
                 can_remove = false;
-                console.log("cannot remove if_clause since it has associated else_clause")
+                //console.log("cannot remove if_clause since it has associated else_clause")
             }
         }
 
@@ -466,11 +479,11 @@ const try_remove = async (racy_item, safe_item, is_multiline, safeShader, racySh
         
             // remove from racy
             new_racyShader = await remove(racy_item, racyShader);
-            console.log("created new ast and shader to see if mismatches changed");
+            //console.log("created new ast and shader to see if mismatches changed");
 
             // check mismatches
             all_new_mismatches = await getMismatches(safeShader, new_racyShader, shaderInfo);
-            console.log("all mismatches: ", all_new_mismatches)
+            //console.log("all mismatches: ", all_new_mismatches)
 
             // fatal error
             if (all_new_mismatches === null) {
@@ -499,14 +512,14 @@ const try_remove = async (racy_item, safe_item, is_multiline, safeShader, racySh
                 JSON.stringify(mismatches, null, 2) === JSON.stringify(new_mismatches, null, 2))
             );
             // if mode is keep any mismatches -- ensure removing a statement doesn't get rid of all mismatches
-            // if any runs were empty, return false
-            keep_any = (mismatchMode === 1 && all_new_mismatches.every(arr => arr.length > 0))
+            // if all runs were empty, return false
+            keep_any = (mismatchMode === 1 && all_new_mismatches.some(arr => arr.length > 0))
             // make sure you still have specific mismatches according to user
             // make sure each run had those specific mismatches
             keep_specific = (mismatchMode === 2 && all_new_mismatches.every(new_mismatches =>
                 matchesSpecificMismatches(new_mismatches, specificMismatches))
             );
-            console.log(`keep same = ${keep_same}, keep_any = ${keep_any}, keep_specific = ${keep_specific}`); 
+            //console.log(`keep same = ${keep_same}, keep_any = ${keep_any}, keep_specific = ${keep_specific}`); 
 
         }
 
@@ -524,13 +537,13 @@ const try_remove = async (racy_item, safe_item, is_multiline, safeShader, racySh
 
             // unless multiline
             if (is_multiline) {
-                console.log("statement is multiline, attempting to remove children");
+                //console.log("statement is multiline, attempting to remove children");
                 // try removing child statements
 
                 let racy_removables = racy_item;
 
                 if (! initial) {
-                    console.log("finding if/while/for_statement");
+                    //console.log("finding if/while/for_statement");
                     let multiline_statement_node = racy_item.node;
                     let multiline_statement_index = 0;
                     for (let i = 0; i < racy_item.node.childCount; i++) {
@@ -541,7 +554,7 @@ const try_remove = async (racy_item, safe_item, is_multiline, safeShader, racySh
                             break;
                         }
                     }
-                    console.log("found " + multiline_statement_node.type);
+                    //console.log("found " + multiline_statement_node.type);
                     
                     let node = multiline_statement_node;
                     // if statements seem to have one extra layer of depth for some reason
@@ -552,9 +565,9 @@ const try_remove = async (racy_item, safe_item, is_multiline, safeShader, racySh
                     
                     
                     if (! is_if) {
-                        console.log("finding compound_statement inside while/for_statement or if/else_clause");
+                        //console.log("finding compound_statement inside while/for_statement or if/else_clause");
                     
-                        console.log("node type " + node.type);
+                        //console.log("node type " + node.type);
                         let index = 0;
                         for (let i = 0; i < node.childCount; i++) {
                             // console.log(node.child(i).type);
@@ -563,8 +576,8 @@ const try_remove = async (racy_item, safe_item, is_multiline, safeShader, racySh
                                 break;
                             }
                         }
-                        console.log("found compound_statement inside multiline");
-                        console.log(node.child(index).type);
+                        //console.log("found compound_statement inside multiline");
+                        //console.log(node.child(index).type);
 
                         node = node.child(index);
 
@@ -588,7 +601,7 @@ const try_remove = async (racy_item, safe_item, is_multiline, safeShader, racySh
 
                 }
 
-                console.log("done trying to remove kids");
+                //console.log("done trying to remove kids");
             }
             return {safeShader, racyShader, mismatches};
         }
@@ -768,17 +781,17 @@ const statementsMatch = (racy_item, safe_item) => {
 };
 
 
-const getMismatches = async (safeShader, racyShader, shaderInfo, retries = 3, delay = 1000) => {
+const getMismatches = async (safeShader, racyShader, shaderInfo, retries = 1, delay = 1000) => {
     for (let attempt = 1; attempt <= retries; attempt++) {
         try {
-            console.log(`Attempt ${attempt} to run shaders...`);
+            //console.log(`Attempt ${attempt} to run shaders...`);
 
-            console.log(shaderInfo);
+            //console.log(shaderInfo);
 
-            console.log("latest safe shader:")
-            console.log(createExpandableLog(safeShader))
-            console.log("latest racy shader:")
-            console.log(createExpandableLog(racyShader))
+            //console.log("latest safe shader:")
+            //console.log(createExpandableLog(safeShader))
+            //console.log("latest racy shader:")
+            //console.log(createExpandableLog(racyShader))
 
             let outputs1 = [];
             let outputs2 = [];
@@ -787,19 +800,23 @@ const getMismatches = async (safeShader, racyShader, shaderInfo, retries = 3, de
 
             for (let i = 0; i < retries; i++) {
                 outputs1 = await run_shader(safeShader, shaderInfo, init);
-                console.log("ran shader 1 successfully");
+                //console.log("ran shader 1 successfully");
                 // init = await run_init(shaderInfo);
                 outputs2 = await run_shader(racyShader, shaderInfo, init);
-                console.log("ran shader 2 successfully");
+                //console.log("ran shader 2 successfully");
 
                 let safeArray = outputs1[0] || [];
                 let raceArray = outputs2[0] || [];
 
-                console.log("debug safe: ", outputs1[5])
-                console.log("debug racy: ", outputs2[5])
+                if (outputs1[5][0] != 42) {
+                  console.log("Warn: safe shader did not execute debug statement");
+                }
+                if (outputs2[5][0] != 42) {
+                  console.log("Warn: racy shader did not execute debug statement");
+                }
 
-                // console.log(safeArray);
-                // console.log(raceArray);
+                 //console.log(safeArray);
+                 //console.log(raceArray);
                 
 
                 let data_race_info = {
@@ -809,8 +826,7 @@ const getMismatches = async (safeShader, racyShader, shaderInfo, retries = 3, de
                 };
 
                 results.push(analyze(safeArray, raceArray, shaderInfo, data_race_info, 1));
-                console.log(`get mismatches run ${i} returns: ${results[i]}`);
-
+                console.log(`run ${i} number of mismatches: ${results[i].length}`);
             }
 
 
@@ -943,7 +959,7 @@ const remove = async (block, code, retries = 3, delay = 1000) => {
         end = block.node.endIndex;
     }
     
-    console.log(`Attempting to remove: ${code.slice(start, end)}`);
+    //console.log(`Attempting to remove: ${code.slice(start, end)}`);
 
     // // get byte positions of the text-- these correspond to the start and end of text to remove from the shader
     // let start = node.startIndex; // Byte offset start
