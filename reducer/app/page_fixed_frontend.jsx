@@ -3,8 +3,8 @@
 import React, { useState, useEffect } from "react";
 import { run_shader, run_init } from "../components/run_shader";
 import { analyze } from "../components/analyze_results";
-import { reduce, extraReduce, replaceReduce } from "../components/reducer.js";
-import axios from 'axios';
+import { reduce } from "../components/reducer.js";
+import axios from "axios";
 
 // using wasm 
 const Parser = require('web-tree-sitter');
@@ -18,7 +18,6 @@ const ShaderRunner = () => {
   const [workgroupSize, setWorkgroupSize] = useState('12');
   const [workgroups, setWorkgroups] = useState('117');
   const [jsonInput, setJsonInput] = useState('');
-  const [iteration, setIteration] = useState(1);
   const [shaderInfo, setShaderInfo] = useState({
     workgroup_size: workgroupSize,
     workgroups: workgroups,
@@ -37,9 +36,6 @@ const ShaderRunner = () => {
   const [reducedSafeShader, setReducedSafeShader] = useState(null);
   const [reducedRacyShader, setReducedRacyShader] = useState(null);
   const [reducedMismatches, setReducedMismatches] = useState(null);
-  // const [extra_reducedSafeShader, extra_setReducedSafeShader] = useState(null);
-  // const [extra_reducedRacyShader, extra_setReducedRacyShader] = useState(null);
-  // const [extra_reducedMismatches, extra_setReducedMismatches] = useState(null);
   const [mismatchMode, setMismatchMode] = useState(1);
   const [specificMismatches, setSpecificMismatches] = useState(null);
 
@@ -76,8 +72,6 @@ const ShaderRunner = () => {
   };
 
   const getMismatches = async () => {
-    console.log(iteration);
-    setIteration(iteration + 1);
     try {
       let init = await run_init(shaderInfo);
       // console.log(shader1);
@@ -177,10 +171,7 @@ const ShaderRunner = () => {
 
     console.log("mismatch mode: ", mismatchMode);
 
-    let sShader = reducedSafeShader !== null ? reducedSafeShader : shader1
-    let rShader = reducedRacyShader !== null ? reducedRacyShader : shader2
-
-    let [safeShader, racyShader, new_mismatches] = await reduce(sShader, rShader, shaderInfo, mismatchMode, spec_mismatches);
+    let [safeShader, racyShader, new_mismatches] = await reduce(shader1, shader2, shaderInfo, mismatchMode, spec_mismatches);
 
     // let i = 0;
     // if (new_mismatches.length > 1 && i < 3) {
@@ -212,56 +203,8 @@ const ShaderRunner = () => {
     }
 
     // set reduced outputs
-    setReducedSafeShader(safeShader.trim());
-    setReducedRacyShader(racyShader.trim());
-    setReducedMismatches(JSON.stringify(new_mismatches, null, 2));
-    // setReducedMismatches(new_mismatches);
-  };
-
-  const extraReduceWGSL = async () => {
-    let spec_mismatches = parseSpecificMismatches(specificMismatches);
-    console.log("specific mismatches ", spec_mismatches)
-
-    console.log("mismatch mode: ", mismatchMode);
-
-    let sShader = reducedSafeShader !== null ? reducedSafeShader : shader1
-    let rShader = reducedRacyShader !== null ? reducedRacyShader : shader2
-
-    let [safeShader, racyShader, new_mismatches] = await extraReduce(sShader, rShader, shaderInfo, mismatchMode, spec_mismatches);
-
-    console.log("page tsx new mismatches: ", new_mismatches);
-
-    if (!safeShader || !racyShader) {
-      console.log("safeShader or racyShader is null!");
-    }
-
-    // set reduced outputs
-    setReducedSafeShader(safeShader.trim());
-    setReducedRacyShader(racyShader.trim());
-    setReducedMismatches(JSON.stringify(new_mismatches, null, 2));
-    // setReducedMismatches(new_mismatches);
-  };
-
-  const replaceVarWGSL = async () => {
-    let spec_mismatches = parseSpecificMismatches(specificMismatches);
-    console.log("specific mismatches ", spec_mismatches)
-
-    console.log("mismatch mode: ", mismatchMode);
-
-    let sShader = reducedSafeShader !== null ? reducedSafeShader : shader1
-    let rShader = reducedRacyShader !== null ? reducedRacyShader : shader2
-
-    let [safeShader, racyShader, new_mismatches] = await replaceReduce(sShader, rShader, shaderInfo, mismatchMode, spec_mismatches, '2u');
-
-    console.log("page tsx new mismatches: ", new_mismatches);
-
-    if (!safeShader || !racyShader) {
-      console.log("safeShader or racyShader is null!");
-    }
-
-    // set reduced outputs
-    setReducedSafeShader(safeShader.trim());
-    setReducedRacyShader(racyShader.trim());
+    setReducedSafeShader(safeShader);
+    setReducedRacyShader(racyShader);
     setReducedMismatches(JSON.stringify(new_mismatches, null, 2));
     // setReducedMismatches(new_mismatches);
   };
@@ -382,18 +325,12 @@ const ShaderRunner = () => {
           <br />
           <div style={{ ...styles.analyzeSection, ...styles.column }}>
             <button style={{ ...styles.greenButton, ...styles.wideButton }} onClick={reduceWGSL}>
-              Line Reduction
+              Generate AST and Reduce
             </button>
 
-            <button style={{ ...styles.greenButton, ...styles.wideButton }} onClick={extraReduceWGSL}>
-              Variable Reduction
-            </button>
-
-            <button style={{ ...styles.greenButton, ...styles.wideButton }} onClick={replaceVarWGSL}>
-              Variable Replacement
-            </button>
-
-
+            {/* <div style={styles.output}>
+              <pre style={styles.code}>{ast || 'Generate AST...'}</pre>
+            </div> */}
 
           </div>   
 
@@ -406,8 +343,7 @@ const ShaderRunner = () => {
               <textarea
                 style={styles.largeTextAreaWrapText}
                 value={reducedSafeShader || ""}
-                // readOnly
-                onChange={(e) => setReducedSafeShader(e.target.value)}
+                readOnly
                 placeholder="Reduced Safe Shader Output..."
               />
             </div>
@@ -417,8 +353,7 @@ const ShaderRunner = () => {
               <textarea
                 style={styles.largeTextAreaWrapText}
                 value={reducedRacyShader || ""}
-                // readOnly
-                onChange={(e) => setReducedRacyShader(e.target.value)}
+                readOnly
                 placeholder="Reduced Racy Shader Output..."
               />
             </div>
@@ -433,20 +368,6 @@ const ShaderRunner = () => {
             </div>
           </div>
           <br />
-
-          <div style={{ ...styles.analyzeSection, ...styles.column }}>
-            <button style={{ ...styles.greenButton, ...styles.wideButton }} 
-              onClick={() => {
-                setReducedSafeShader(null);
-                setReducedRacyShader(null);
-                setReducedMismatches(null);
-              }}
-            >
-              Clear Results
-            </button>
-          </div>   
-          <br />
-
           <br />
           <br />
           
